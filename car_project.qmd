@@ -1,0 +1,93 @@
+---
+title: "Car Prices: Do Brands Matter?"
+author: "Manuel Weihmann & Daniel Stepanovic"
+format: pdf
+---
+
+# Macht die Marke einen Unterschied beim Preis?
+
+## 1) Setup
+
+```{r}
+library(tidyverse)
+```
+
+## 2) Load and clean the data
+
+```{r}
+cars <- readr::read_csv("CarPrice_Assignment.csv")
+```
+
+# Make a simple "brand" from the first word of CarName
+```{r}
+cars <- cars |>
+  mutate(brand = tolower(sub(" .*", "", CarName)))
+```
+
+# 2) Quick look at price
+```{r}
+# Basic summary
+summary(cars$price)
+
+# Price histogram (shape of prices)
+ggplot(cars, aes(price)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Price distribution", x = "Price", y = "Count")
+
+```
+Range: from 5,118 to 45,400 → very wide spread.
+
+Middle (median): 10,295 → half the cars cost ≤ 10,295 and half ≥ 10,295.
+
+Average (mean): 13,277, which is higher than the median → suggests a right-skewed distribution (some expensive cars pull the average up).
+
+Middle 50% (IQR): Q3 − Q1 = 16,503 − 7,788 = 8,715 → typical prices in the middle half span about 8.7k.
+
+Possible high outliers: A common cutoff is Q3 + 1.5×IQR ≈ 29,576. Since the max is 45,400, there are likely high-price outliers.
+
+What we can conclude
+
+Prices are skewed to the right with some very expensive cars.
+
+The median (10,295) is a better “typical price” than the mean here.
+
+For plots/models, using log(price) will often give clearer patterns.
+
+# 3) Do brands look different?
+```{r}
+# Keep the 8 most common brands (everything else = "other") so the plot is clean
+top_brands <- cars |>
+  count(brand, sort = TRUE) |>
+  slice_head(n = 8) |>
+  pull(brand)
+
+cars_small <- cars |>
+  mutate(brand_simple = if_else(brand %in% top_brands, brand, "other"))
+
+# Boxplot: prices by brand
+ggplot(cars_small, aes(x = reorder(brand_simple, price, FUN = median), y = price)) +
+  geom_boxplot() +
+  coord_flip() +
+  labs(title = "Prices by brand (Top 8 + other)", x = "Brand", y = "Price")
+
+```
+
+# 4) One-line check: brand effect
+```{r}
+# Super simple test: price ~ brand (no other variables)
+fit <- lm(price ~ brand_simple, data = cars_small)
+summary(fit)
+
+```
+
+Abschlussfazit
+
+Ja, Marke spielt eine Rolle: Einfache ANOVA/Regression mit price ~ brand ist gesamt signifikant.
+
+Größe des Effekts: Marke erklärt ca. 20 % der Preisunterschiede (R² ≈ 0.21) – also relevant, aber nicht alles.
+
+Wer teurer wirkt (vs. Referenz Honda): Volvo, Peugeot und die Gruppe „other“ liegen deutlich höher; die übrigen Top-Marken sind im einfachen Modell nicht klar verschieden.
+
+Aber: Die Unterschiede spiegeln auch Ausstattung wider (Motor, PS, Gewicht). Ohne Kontrolle überschätzen wir „reine“ Markeneffekte.
+
+“Brand matters for price (significant), explaining ~20% of variation; Volvo/Peugeot/‘other’ are pricier than the baseline, but much of the price is still driven by specs—so brand premiums shrink or shift once we control for engine size, horsepower, etc.”
