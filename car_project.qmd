@@ -1,40 +1,140 @@
 ---
-title: "Car Prices: Do Brands Matter?"
+title: "Data Science Engineering Project with R"
+subtitle: "Dataset: [Car Price Prediction](https://www.kaggle.com/datasets/goyalshalini93/car-data)"
 author: "Manuel Weihmann & Daniel Stepanovic"
-format: pdf
+date: today
+embed-resources: true
+format:
+  pdf: 
+    output-file: CarPricePrediction_Weihmann_Stepanovic.pdf 
+    toc: true
+    number-sections: true
+    code-link: true
+    df-print: tibble
+    crossref: 
+      lof-title: "List of Figures"
+fig-align: center
+execute: 
+  warning: false
 ---
 
-# Macht die Marke einen Unterschied beim Preis?
+{{< pagebreak >}}
 
-## 1) Setup
+# Introduction
+
+::: callout-caution
+### Introduction
+
+This report looks at car prices and asks: do brands differ in price?
+
+-   Data handling: load the CSV and create a clean brand column
+
+-   Descriptive stats: quick numbers for price (min, median, mean, max)
+
+-   Visuals: a histogram of prices and boxplots by brand
+
+-   Simple model: test if price differs by brand
+
+-   Takeaways: what matters, what we found, and limits of the data
+:::
+
+## Libraries
 
 ```{r}
 library(tidyverse)
 ```
 
-## 2) Load and clean the data
+# Data 
+
+## Data source
+We use the Car Price Prediction dataset (CarPrice_Assignment.csv).
+It contains 205 cars and 26 variables (price, brand/model, technical specs).
+
+## Data import
+ 
+```{r}
+cars <- readr::read_csv("data/CarPrice_Assignment.csv")
+```
+-   10 character variables
+-   16 numeric variables
+
+{{< pagebreak >}}
+
+## Data dictionary
 
 ```{r}
-cars <- readr::read_csv("CarPrice_Assignment.csv")
+dict <- data.frame(
+  Variable = names(cars),
+  Type     = sapply(cars, function(x) paste(class(x), collapse = ", "))
+)
+
+knitr::kable(dict)   
 ```
 
-# Make a simple "brand" from the first word of CarName
+{{< pagebreak >}}
+
+# Summary statistic tables
+
+## Numeric variables: mean, sd, min, Q1, median, Q3, max
+```{r}
+nums <- names(cars)[sapply(cars, is.numeric)]
+
+num_summary <- t(sapply(cars[nums], function(x) c(
+  n      = sum(!is.na(x)),
+  mean   = mean(x, na.rm = TRUE),
+  sd     = sd(x, na.rm = TRUE),
+  min    = min(x, na.rm = TRUE),
+  q1     = as.numeric(quantile(x, 0.25, na.rm = TRUE)),
+  median = median(x, na.rm = TRUE),
+  q3     = as.numeric(quantile(x, 0.75, na.rm = TRUE)),
+  max    = max(x, na.rm = TRUE)
+)))
+num_summary <- round(as.data.frame(num_summary), 2)
+num_summary
+```
+
+The numeric table shows the main summary stats (mean, sd, quartiles) for each numeric variable (e.g., price, enginesize, horsepower).
+
+## Categorical variables: number of levels + top 5 most common
+```{r}
+is_cat <- function(x) is.factor(x) || is.character(x)
+cats <- names(cars)[sapply(cars, is_cat)]
+
+cat_summary <- do.call(rbind, lapply(cats, function(v){
+  tab <- sort(table(cars[[v]]), decreasing = TRUE)
+  top <- head(paste(names(tab), tab, sep=": "), 5)
+  data.frame(
+    variable = v,
+    n_levels = length(tab),
+    top_levels = paste(top, collapse = " | "),
+    row.names = NULL
+  )
+}))
+cat_summary
+
+```
+
+The categorical table lists how many levels each label variable has and the top categories with counts.
+
+{{< pagebreak >}}
+
+# Data visualisations
+
+Make a simple "brand" from the first word of CarName
+
 ```{r}
 cars <- cars |>
   mutate(brand = tolower(sub(" .*", "", CarName)))
 ```
 
-# 2) Quick look at price
+## Price histogram (shape of prices)
 ```{r}
-# Basic summary
-summary(cars$price)
-
-# Price histogram (shape of prices)
 ggplot(cars, aes(price)) +
   geom_histogram(bins = 30) +
   labs(title = "Price distribution", x = "Price", y = "Count")
 
 ```
+
 Range: from 5,118 to 45,400 → very wide spread.
 
 Middle (median): 10,295 → half the cars cost ≤ 10,295 and half ≥ 10,295.
@@ -53,7 +153,10 @@ The median (10,295) is a better “typical price” than the mean here.
 
 For plots/models, using log(price) will often give clearer patterns.
 
-# 3) Do brands look different?
+{{< pagebreak >}}
+
+## Do brands look different?
+
 ```{r}
 # Keep the 8 most common brands (everything else = "other") so the plot is clean
 top_brands <- cars |>
@@ -72,22 +175,23 @@ ggplot(cars_small, aes(x = reorder(brand_simple, price, FUN = median), y = price
 
 ```
 
-# 4) One-line check: brand effect
+{{< pagebreak >}}
+
+## One-line check: brand effect
+
 ```{r}
 # Super simple test: price ~ brand (no other variables)
 fit <- lm(price ~ brand_simple, data = cars_small)
 summary(fit)
 
 ```
+{{< pagebreak >}}
 
-Abschlussfazit
+# Summary
 
-Ja, Marke spielt eine Rolle: Einfache ANOVA/Regression mit price ~ brand ist gesamt signifikant.
+-   Brand matters: A simple ANOVA/linear model (price ~ brand) is significant.
+-   Effect size: Brand explains about 20% of price differences (R² ≈ 0.21)—important, but not the whole story.
+-   Who looks pricier (vs. Honda baseline): Volvo, Peugeot, and “other” are notably higher; the other top brands are not clearly different in this simple model.
+-   Caveat: These gaps also reflect specifications (engine size, horsepower, weight). Without controls, we may overstate pure brand effects.
 
-Größe des Effekts: Marke erklärt ca. 20 % der Preisunterschiede (R² ≈ 0.21) – also relevant, aber nicht alles.
-
-Wer teurer wirkt (vs. Referenz Honda): Volvo, Peugeot und die Gruppe „other“ liegen deutlich höher; die übrigen Top-Marken sind im einfachen Modell nicht klar verschieden.
-
-Aber: Die Unterschiede spiegeln auch Ausstattung wider (Motor, PS, Gewicht). Ohne Kontrolle überschätzen wir „reine“ Markeneffekte.
-
-“Brand matters for price (significant), explaining ~20% of variation; Volvo/Peugeot/‘other’ are pricier than the baseline, but much of the price is still driven by specs—so brand premiums shrink or shift once we control for engine size, horsepower, etc.”
+Brand matters for price (significant) and explains ~20% of the variation; Volvo/Peugeot/“other” are pricier than the baseline, but much of the price is driven by specs—brand premiums change once we control for engine size, horsepower, and weight.
